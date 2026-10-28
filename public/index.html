@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0a0c10" />
+    <meta
+      name="description"
+      content="解画 FrameDecode：上传视频，抽取关键帧，用 DeepSeek 官方视觉 API 并行生成中文键值对解读。"
+    />
+    <title>解画 FrameDecode · 视频逐帧解读</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="noise" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="解画首页">
+        <span class="brand-mark" aria-hidden="true">
+          <span class="brand-mark-core"></span>
+          <span class="brand-mark-ring"></span>
+        </span>
+        <span class="brand-copy">
+          <strong>解画</strong>
+          <small>FRAMEDECODE</small>
+        </span>
+      </a>
+
+      <div class="top-center">
+        <span class="api-state" id="apiState">
+          <span class="dot" id="apiDot"></span>
+          <span id="apiText">检查 API 状态</span>
+        </span>
+        <span class="top-divider"></span>
+        <span class="model-chip" id="modelChip">deepseek-flash</span>
+      </div>
+
+      <div class="top-actions">
+        <button class="ghost-btn" id="keyBtn" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M14.5 9.5a3.5 3.5 0 1 1-4.95 4.95l-1.8 1.8H6v2.25H3.75V16.2l6.1-6.1a3.5 3.5 0 0 1 4.65-.6Z" />
+            <circle cx="15.25" cy="8.75" r="1" />
+          </svg>
+          <span>API Key</span>
+        </button>
+        <button class="ghost-btn" id="exportBtn" type="button" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v11m0 0 4-4m-4 4-4-4M4 17v2.5h16V17" />
+          </svg>
+          <span>导出 JSON</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="left-col" aria-label="视频与抽帧设置">
+        <div class="stage" id="stage">
+          <video id="video" controls playsinline preload="metadata"></video>
+
+          <div class="stage-empty" id="dropzone">
+            <div class="drop-visual" aria-hidden="true">
+              <div class="film-frame f1"><span></span></div>
+              <div class="film-frame f2"><span></span></div>
+              <div class="film-frame f3"><span></span></div>
+              <div class="scanline"></div>
+              <div class="corner tl"></div>
+              <div class="corner tr"></div>
+              <div class="corner bl"></div>
+              <div class="corner br"></div>
+            </div>
+
+            <p class="eyebrow">VIDEO → KEYFRAMES → JSON</p>
+            <h1>把视频变成<br /><em>可读的每一帧</em></h1>
+            <p class="lede">
+              只解码关键帧，DeepSeek 视觉模型并行解读。播放视频时，
+              画面里的场景、人物、文字与细节就在右侧同步出现。
+            </p>
+            <div class="drop-actions">
+              <button class="primary-btn" id="pickBtn" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 16v3.5h16V16" />
+                </svg>
+                选择视频
+              </button>
+              <button class="text-btn" id="sampleBtn" type="button">载入 12 秒示例 →</button>
+            </div>
+            <p class="drop-hint">MP4 / MOV / MKV / WebM · 最大 2 GB · 视频留在本机，仅关键帧发往 DeepSeek</p>
+            <input type="file" id="fileInput" accept="video/*,.mkv,.m4v" hidden />
+          </div>
+
+          <div class="stage-file hidden" id="fileBadge">
+            <span class="file-icon" aria-hidden="true"></span>
+            <span class="file-meta">
+              <strong id="fileName">video.mp4</strong>
+              <small id="fileSize">—</small>
+            </span>
+            <button class="mini-btn" id="changeBtn" type="button">换一个</button>
+          </div>
+
+          <div class="stage-status hidden" id="stageStatus">
+            <span class="pulse-dot"></span>
+            <span id="stageStatusText">准备中</span>
+          </div>
+        </div>
+
+        <div class="timeline-block">
+          <div class="timeline" id="timeline" role="slider" aria-label="视频进度" tabindex="0">
+            <div class="timeline-buffer"></div>
+            <div class="timeline-progress" id="timelineProgress"></div>
+            <div class="timeline-markers" id="timelineMarkers"></div>
+            <div class="timeline-head" id="timelineHead"></div>
+          </div>
+          <div class="timeline-labels">
+            <span id="currentTime">00:00</span>
+            <span class="timeline-hint">点击标记跳到对应关键帧</span>
+            <span id="durationTime">00:00</span>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat">
+            <span>总耗时</span>
+            <strong id="statElapsed">—</strong>
+            <small id="statElapsedSub">等待开始</small>
+          </div>
+          <div class="stat">
+            <span>已解读</span>
+            <strong id="statFrames">0 / 0</strong>
+            <small id="statFramesSub">关键帧</small>
+          </div>
+          <div class="stat">
+            <span>平均 API 延迟</span>
+            <strong id="statLatency">—</strong>
+            <small>并行请求</small>
+          </div>
+          <div class="stat">
+            <span>预估费用</span>
+            <strong id="statCost">¥0.0000</strong>
+            <small id="statCostSub">按官方价格估算</small>
+          </div>
+        </div>
+
+        <div class="control-bar">
+          <div class="control-group">
+            <span class="control-label">抽帧方式</span>
+            <div class="segmented" id="modeSeg" role="group" aria-label="抽帧方式">
+              <button class="active" data-mode="keyframe" type="button">关键帧 <i>最快</i></button>
+              <button data-mode="uniform" type="button">均匀</button>
+              <button data-mode="scene" type="button">场景切换</button>
+            </div>
+          </div>
+
+          <div class="control-group compact">
+            <span class="control-label">帧数 <b id="frameCountLabel">10</b></span>
+            <input type="range" id="frameCount" min="4" max="24" step="1" value="10" />
+          </div>
+
+          <div class="control-group">
+            <span class="control-label">画质</span>
+            <div class="segmented" id="qualitySeg" role="group" aria-label="画质">
+              <button data-quality="fast" type="button">极速</button>
+              <button class="active" data-quality="balanced" type="button">均衡</button>
+              <button data-quality="detail" type="button">高清</button>
+            </div>
+          </div>
+
+          <div class="control-group compact">
+            <span class="control-label">并发</span>
+            <select id="concurrency" aria-label="并发请求数">
+              <option value="6">6</option>
+              <option value="12" selected>12</option>
+              <option value="20">20</option>
+              <option value="32">32</option>
+            </select>
+          </div>
+
+          <button class="primary-btn start-btn" id="startBtn" type="button" disabled>
+            <span>开始解读</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 12h13m0 0-5-5m5 5-5 5" />
+            </svg>
+          </button>
+        </div>
+      </section>
+
+      <aside class="right-col" aria-label="逐帧解读结果">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">DEEPSEEK VISION</p>
+            <h2>逐帧解读</h2>
+          </div>
+          <div class="panel-tools">
+            <span class="sync-state" id="syncState"><span></span>跟随播放</span>
+            <button class="mini-btn" id="copyBtn" type="button" disabled>复制本帧</button>
+          </div>
+        </div>
+
+        <div class="current-pane" id="currentPane">
+          <div class="empty-panel">
+            <div class="empty-orbit" aria-hidden="true">
+              <span></span><span></span><span></span>
+              <i></i>
+            </div>
+            <h3>等待一段视频</h3>
+            <p>
+              上传后先在左侧预览。点击「开始解读」，右侧会随着播放进度，
+              自动切换到当前关键帧的中文信息卡。
+            </p>
+            <div class="empty-steps">
+              <span><b>01</b> 抽帧</span>
+              <span><b>02</b> 并行识别</span>
+              <span><b>03</b> 同步播放</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="film-head">
+          <span>关键帧</span>
+          <span id="filmCount">0</span>
+        </div>
+        <div class="filmstrip" id="filmstrip">
+          <div class="film-empty">解读后在这里排列每一帧</div>
+        </div>
+
+        <div class="frame-list-head">
+          <span>全部画面</span>
+          <span class="list-note" id="listNote">按时间排序</span>
+        </div>
+        <div class="frame-list" id="frameList">
+          <div class="list-empty">暂无数据</div>
+        </div>
+
+        <footer class="panel-foot">
+          图像会发送至 DeepSeek 官方 API · 键名固定，值全部为中文
+        </footer>
+      </aside>
+    </main>
+
+    <dialog class="key-dialog" id="keyDialog">
+      <form method="dialog" class="dialog-card">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">CREDENTIALS</p>
+            <h2>连接 DeepSeek</h2>
+          </div>
+          <button class="icon-close" data-close-dialog aria-label="关闭" type="button">×</button>
+        </div>
+
+        <p class="dialog-copy">
+          使用 DeepSeek 官方视觉模型 <code>deepseek-flash</code>。Key 只保存在本机浏览器，
+          随分析请求发送到本机服务，服务端不会写入磁盘。
+        </p>
+
+        <label class="field-label" for="keyInput">API Key</label>
+        <div class="key-field">
+          <input
+            id="keyInput"
+            type="password"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="sk-..."
+          />
+          <button class="mini-btn" id="toggleKey" type="button">显示</button>
+        </div>
+
+        <label class="check-line">
+          <input type="checkbox" id="rememberKey" checked />
+          <span>在这台电脑上记住（localStorage）</span>
+        </label>
+
+        <div class="dialog-note" id="keyDialogNote">
+          也可以把 <code>DEEPSEEK_API_KEY</code> 写进项目根目录的 <code>.env</code>。
+        </div>
+
+        <div class="dialog-actions">
+          <button class="ghost-btn" data-close-dialog type="button">取消</button>
+          <button class="primary-btn" id="saveKeyBtn" type="button">保存并继续</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

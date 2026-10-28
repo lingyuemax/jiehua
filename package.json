@@ -1,0 +1,37 @@
+{
+  "name": "jiehua-deepseek-video",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "解画 FrameDecode：用 DeepSeek 视觉 API 将视频关键帧解读为中文键值对",
+  "author": "林荣华",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lingyuemax/jiehua.git"
+  },
+  "homepage": "https://github.com/lingyuemax/jiehua#readme",
+  "bugs": {
+    "url": "https://github.com/lingyuemax/jiehua/issues"
+  },
+  "keywords": [
+    "deepseek",
+    "vision",
+    "video",
+    "keyframes",
+    "ffmpeg",
+    "multimodal",
+    "chinese"
+  ],
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "sample": "python scripts/make_sample.py",
+    "test": "node scripts/test-e2e.mjs",
+    "test:ui": "node scripts/ui-test.mjs",
+    "test:upstream": "node scripts/test-upstream.mjs",
+    "test:real": "node scripts/real-test.mjs"
+  },
+  "engines": {
+    "node": ">=20.3"
+  }
+}
